@@ -26,8 +26,12 @@ from restaurant_rec.phase3 import recommend
 # Secrets bridge: Streamlit Cloud puts secrets in st.secrets; the rest of
 # the codebase (groq_client.py) reads os.environ. Wire them together.
 # ----------------------------------------------------------------------
-if "GROQ_API_KEY" in st.secrets and not os.environ.get("GROQ_API_KEY"):
-    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+if not os.environ.get("GROQ_API_KEY"):
+    try:
+        if "GROQ_API_KEY" in st.secrets:
+            os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+    except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+        pass
 
 
 # ----------------------------------------------------------------------
