@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restaurant Recommender</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Restaurant Recommender</h1>
+    <p class="subtitle">Bangalore · Zomato data · Groq-powered ranking</p>
+  </header>
+
+  <main>
+    <form id="prefs-form" autocomplete="off">
+      <div class="row">
+        <label for="location">Locality <span class="req">*</span></label>
+        <select id="location" name="location" required>
+          <option value="">Loading…</option>
+        </select>
+      </div>
+
+      <div class="row two">
+        <div>
+          <label for="cuisine">Cuisine</label>
+          <input id="cuisine" name="cuisine" type="text" placeholder="e.g. North Indian, Italian" />
+        </div>
+        <div>
+          <label for="min_rating">Min rating</label>
+          <input id="min_rating" name="min_rating" type="number" min="0" max="5" step="0.1" value="4.0" />
+        </div>
+      </div>
+
+      <div class="row two">
+        <div>
+          <label for="budget_max_inr">Max budget (₹ for two)</label>
+          <input id="budget_max_inr" name="budget_max_inr" type="number" min="0" step="50" value="1500" />
+        </div>
+        <div>
+          <label for="extras">Extras (optional)</label>
+          <input id="extras" name="extras" type="text" placeholder="family-friendly, quick service…" />
+        </div>
+      </div>
+
+      <button id="submit" type="submit">Get recommendations</button>
+    </form>
+
+    <section id="status" class="status hidden"></section>
+
+    <section id="results" class="results hidden">
+      <h2 id="summary"></h2>
+      <p id="meta" class="meta"></p>
+      <div id="cards"></div>
+    </section>
+  </main>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

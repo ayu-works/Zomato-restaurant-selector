@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background: #ffffff;
+  color: #1f2937;
+}
+
+/* Subtle creamy page background like the mocks */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 0% 0%, #fff5f5 0%, #ffffff 45%);
+  z-index: -1;
+}

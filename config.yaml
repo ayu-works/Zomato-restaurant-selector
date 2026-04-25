@@ -1,0 +1,41 @@
+paths:
+  raw_dir: data/raw
+  processed_catalog: data/processed/restaurants.parquet
+
+dataset:
+  hf_id: ManikaSaini/zomato-restaurant-recommendation
+  split: train
+  # This dataset is Bangalore-only (no raw city column; `listed_in(city)`
+  # actually holds neighbourhoods like "BTM", "Koramangala 5th Block").
+  default_city: Bangalore
+
+schema:
+  rating_scale_max: 5.0
+  budget_tiers:
+    low_max_inr: 500
+    medium_max_inr: 1200
+
+filter:
+  # Cap rows passed to the LLM (Phase 3). 20–50 is the sweet spot.
+  max_shortlist_candidates: 40
+  # If the strict rating filter yields fewer than this many rows,
+  # relax `min_rating` by `rating_relax_step` once.
+  relax_min_matches: 5
+  rating_relax_step: 0.5
+
+llm:
+  # Groq is the chosen provider. API key is read from .env (GROQ_API_KEY).
+  provider: groq
+  model: llama-3.3-70b-versatile
+  temperature: 0.2
+  max_tokens: 1200
+  timeout_s: 30
+  top_k: 5             # number of recommendations to ask the model for
+  prompt_version: v1
+
+city_aliases:
+  Bengaluru: Bangalore
+  Bombay: Mumbai
+  Calcutta: Kolkata
+  Madras: Chennai
+  Gurugram: Gurgaon

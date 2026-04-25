@@ -1,0 +1,27 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.egg-info/
+*.egg-info/
+build/
+dist/
+.ipynb_checkpoints/
+.DS_Store
+
+# Data artifacts. Raw HF dump is ~150 MB (over GitHub's 100 MB cap) so it
+# is excluded; processed catalog (~750 KB) is committed so deployment works
+# without re-running ingestion.
+data/raw/*
+!data/raw/.gitkeep
+
+# Node / Next
+node_modules/
+.next/
+out/
+
+# Misc
+.DS_Store
+*.log
