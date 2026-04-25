@@ -19,6 +19,17 @@ npm run dev                                      # listens on :3000
 sees one origin and there are no CORS preflights. Override the upstream with
 `BACKEND_URL=http://host:port npm run dev`.
 
+## Deploy to Vercel
+
+1. Vercel → New Project → import this repo.
+2. **Root Directory**: `web-next` (so Vercel runs `npm run build` in this folder).
+3. Framework preset: Next.js (auto-detected).
+4. **Environment Variables**: add `BACKEND_URL` = your deployed FastAPI URL
+   (e.g. `https://zomato-recommender-api.onrender.com`, no trailing slash).
+   See `.env.example`.
+5. Deploy. The browser calls same-origin `/api/*`; Next.js rewrites those
+   to `BACKEND_URL` server-side, so no CORS config is needed.
+
 ## Structure
 
 ```
