@@ -306,6 +306,11 @@ Two frontends share the Phase 4 backend; pick the one that matches the goal.
   emoji, and a `"💬 Why this for you?"` tinted box for the LLM explanation, plus
   a chat-style **Refine further…** input at the bottom that re-runs `/recommend`
   with appended extras.
+- **Preference persistence:** form state (location, cuisine, budget, min rating,
+  extras, refine sidebar) is mirrored to `localStorage` (key `zomato-ai:prefs`,
+  versioned `v: 1`) on every change and rehydrated on next visit, so the user's
+  last query survives reloads. A subtle **Reset** link clears the saved blob and
+  restores defaults (`lib/persistence.ts`).
 - Lives at `:3000`. `next.config.mjs` rewrites `/api/*` → `http://127.0.0.1:8000/api/*`,
   so the browser sees one origin and there are no CORS preflights. Override the
   backend URL with `BACKEND_URL=…`.
@@ -392,46 +397,84 @@ Phase 6 — Deployment
 
 6.1 Topology
 
+Two viable topologies, depending on whether you want one URL or two:
+
+**Topology A — single deployment (recommended for the demo):**
+
+| Tier              | Hosted on                 | Public URL (placeholder)        |
+| ----------------- | ------------------------- | ------------------------------- |
+| Streamlit UI + LLM call | Streamlit Community Cloud | `https://<app>.streamlit.app` |
+| Catalog           | `data/processed/restaurants.parquet` shipped in repo (~750 KB) | n/a |
+
+The Streamlit app *is* the user-facing UI; there is no separate frontend. This
+is the only topology Streamlit Cloud directly supports (see §6.2 caveat).
+
+**Topology B — two-tier (Vercel frontend + REST backend):**
+
 | Tier     | Hosted on              | Public URL (placeholder)            |
 | -------- | ---------------------- | ----------------------------------- |
-| Backend  | Streamlit Community Cloud | `https://<app>.streamlit.app`     |
+| Backend  | Render / Railway / Fly.io / HF Spaces | `https://<api>.example.com` |
 | Frontend | Vercel                 | `https://<app>.vercel.app`          |
 | Catalog  | `data/processed/restaurants.parquet` shipped inside the backend repo (~750 KB) | n/a |
 
-The frontend (`web-next/`) calls the backend over HTTPS; the same `next.config.mjs`
-rewrite that points at `http://127.0.0.1:8000` locally is repointed at the
-Streamlit URL in production via the `BACKEND_URL` env var on Vercel.
+In Topology B, the `web-next/` frontend calls the backend over HTTPS; the same
+`next.config.mjs` rewrite that points at `http://127.0.0.1:8000` locally is
+repointed at the production REST URL via the `BACKEND_URL` env var on Vercel.
+Streamlit Cloud cannot fill the backend slot here because it does not expose a
+clean JSON contract to a separate frontend.
 
 6.2 Backend on Streamlit Community Cloud
 
-**Caveat.** Streamlit Community Cloud runs Streamlit apps, not arbitrary FastAPI
-processes. To deploy the backend there, ship a thin Streamlit entry point
-(`streamlit_app.py`) that imports `restaurant_rec.phase3.recommend` directly and
-exposes the same JSON contract via Streamlit's request handling. FastAPI itself
-remains the dev/test target (used by `uvicorn` and `web/`); Streamlit is purely
-the production wrapper. If a "real" REST host is preferred later, the same image
-runs unchanged on Render, Railway, Fly.io, or Hugging Face Spaces — only this
-section changes.
+**Important caveat (read first).** Streamlit Community Cloud runs Streamlit apps,
+not arbitrary FastAPI processes. The `streamlit_app.py` entry point at the repo
+root is therefore a *self-contained Streamlit UI* that imports
+`restaurant_rec.phase3.recommend` directly — it is the deployable artifact, not
+a JSON wrapper around FastAPI. This means:
 
-Files to add when deploying:
+- **The Streamlit deployment IS the user-facing app on Streamlit Cloud.** It is
+  not a JSON API that the Vercel `web-next/` frontend can talk to.
+- **For the two-tier "Vercel frontend + separate backend" topology** described in
+  §6.1, swap Streamlit Cloud for a host that runs the FastAPI app unchanged:
+  Render, Railway, Fly.io, or Hugging Face Spaces are all drop-in. Only this
+  subsection changes; everything else (the parquet, env var, rewrite) is the
+  same.
 
-| File                 | Purpose                                                    |
-| -------------------- | ---------------------------------------------------------- |
-| `streamlit_app.py`   | Streamlit shim that loads `AppConfig`, eager-loads catalog, exposes a form (or query-param JSON endpoint) calling `recommend()`. |
-| `requirements.txt`   | Mirrors `pyproject.toml` runtime deps (Streamlit Cloud installs from this). |
-| `.streamlit/secrets.toml` | Holds `GROQ_API_KEY` (set via the Streamlit Cloud dashboard, not committed). |
-| `data/processed/restaurants.parquet` | Tracked or built in the Cloud build step. |
+Files committed for the Streamlit deployment:
+
+| File                              | Purpose                                                        |
+| --------------------------------- | -------------------------------------------------------------- |
+| `streamlit_app.py`                | Self-contained UI: form, sidebar, ranked cards with `Why this for you?` block; loads `AppConfig` and the parquet via `@st.cache_resource`; bridges `st.secrets["GROQ_API_KEY"]` to `os.environ` so `groq_client.py` picks it up. |
+| `requirements.txt`                | Streamlit Cloud installs from this at boot. Mirrors runtime deps from `pyproject.toml` and adds `streamlit>=1.36`. Includes `-e .` so the local `restaurant_rec` package is importable. |
+| `runtime.txt`                     | Pins Python to `python-3.11` to match `pyproject.toml`.        |
+| `.streamlit/config.toml`          | Theme (Zomato red, cream secondary).                           |
+| `.streamlit/secrets.toml.example` | Reference for `GROQ_API_KEY`. Real `secrets.toml` is git-ignored — set the secret in the Streamlit Cloud dashboard, not in the repo. |
+| `data/processed/restaurants.parquet` | Catalog (~750 KB) committed so the Cloud boot has no ingestion step. |
 
 Deploy steps:
 
-1. Push the repo to GitHub.
-2. In Streamlit Cloud: **New app → repo → branch → `streamlit_app.py`**.
-3. Add `GROQ_API_KEY` under **Secrets**; the app reads it via
-   `st.secrets["GROQ_API_KEY"]` (mirrored into `os.environ` for `groq_client.py`).
-4. First boot loads the parquet; subsequent calls reuse the in-memory frame.
+1. Push the repo to GitHub (already on `main`).
+2. Streamlit Cloud → **New app**:
+   - Repository: `ayu-works/Zomato-restaurant-selector`
+   - Branch: `main`
+   - Main file path: `streamlit_app.py`
+   - Python version: 3.11 (auto-detected from `runtime.txt`)
+3. **App settings → Secrets** → paste:
+   ```toml
+   GROQ_API_KEY = "gsk_xxx_your_real_key"
+   ```
+4. Deploy. First boot pip-installs deps (~60–90 s), loads the catalog parquet,
+   and renders the form.
+
+Local smoke test:
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+# open http://localhost:8501
+```
 
 Latency note: Groq round-trip dominates (~1–3 s); Streamlit cold start adds
-~5–10 s on the first hit after idle.
+~5–10 s on the first hit after idle. The catalog (12,118 rows, 750 KB) is
+cached via `@st.cache_resource` and reused across requests.
 
 6.3 Frontend on Vercel (`web-next/`)
 
@@ -563,4 +606,4 @@ Traceability to problem statement
 
 ---
 
-Document version: 2.3 — Added Phase 6 (Deployment): backend on Streamlit Community Cloud via a `streamlit_app.py` shim that imports `recommend()` (FastAPI stays the local dev/test target); frontend (`web-next/`) on Vercel with `BACKEND_URL` repointing the `/api/*` rewrite to the Streamlit URL in production. Secrets matrix, rollback / refresh / prompt-bump runbook, and exit criteria documented in §6. Earlier additions retained: dual frontend (vanilla `web/` + Next.js `web-next/`), Phase 4 backend, Groq-locked Phase 3.**
+Document version: 2.5 — Phase 6 deployment files now exist on disk and were smoke-tested locally: `streamlit_app.py` (self-contained Streamlit UI calling `recommend()` directly), `requirements.txt` (Streamlit Cloud install manifest), `runtime.txt` (`python-3.11`), `.streamlit/config.toml` (Zomato theme), `.streamlit/secrets.toml.example`. §6.1 split into Topology A (Streamlit-only, recommended for demo) vs Topology B (Vercel + REST backend on Render/Railway/Fly.io/HF Spaces); §6.2 rewritten to reflect that the Streamlit deployment is the UI, not a JSON wrapper. Earlier additions retained: `web-next/` preference persistence, dual frontend, Phase 4 backend, Groq-locked Phase 3.**

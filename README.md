@@ -222,6 +222,34 @@ Backend contract tests (TestClient — no live server needed):
 python scripts/test_phase4_api.py
 ```
 
+## Deploy
+
+### Streamlit Community Cloud (single-deployment demo)
+
+```bash
+# local smoke test
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+# open http://localhost:8501
+```
+
+On Streamlit Cloud:
+
+1. **New app** → repo `ayu-works/Zomato-restaurant-selector` → branch `main` →
+   main file `streamlit_app.py`.
+2. **Settings → Secrets** →
+   ```toml
+   GROQ_API_KEY = "gsk_xxx"
+   ```
+3. Deploy. The catalog parquet (`data/processed/restaurants.parquet`, ~750 KB)
+   is shipped in the repo, so no ingestion happens on the cloud host.
+
+Files involved: `streamlit_app.py`, `requirements.txt`, `runtime.txt` (pins
+Python 3.11), `.streamlit/config.toml` (theme), `.streamlit/secrets.toml.example`.
+
+See `Docs/phase-wise-architecture.md` §6 for Topology B (Vercel frontend + REST
+backend on Render / Railway / Fly.io / Hugging Face Spaces).
+
 ### Project layout
 
 ```

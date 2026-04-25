@@ -1,0 +1,19 @@
+# Streamlit Community Cloud installs from this file at app boot.
+# Pinned loosely to avoid surprise upgrades; tighten before a real launch.
+
+# Streamlit (deployment host)
+streamlit>=1.36
+
+# Core runtime — must match pyproject.toml
+pandas>=2.1
+pyarrow>=15.0
+pydantic>=2.6
+pyyaml>=6.0
+python-dotenv>=1.0
+groq>=0.11.0
+
+# `datasets` (HF) is intentionally omitted — only needed for offline ingestion
+# (scripts/ingest_zomato.py); the catalog parquet is shipped under data/processed/.
+
+# Install the local package so `from restaurant_rec... import ...` resolves.
+-e .

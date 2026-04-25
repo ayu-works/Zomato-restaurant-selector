@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Header } from "../components/Header";
 import { QueryBar } from "../components/QueryBar";
 import { RefineSidebar, type Refinements } from "../components/RefineSidebar";
@@ -7,37 +7,75 @@ import { RestaurantCard } from "../components/RestaurantCard";
 import { RefineInput } from "../components/RefineInput";
 import { fetchLocalities, recommend } from "../lib/api";
 import type { RecommendResponse } from "../lib/types";
+import { clearPrefs, loadPrefs, savePrefs } from "../lib/persistence";
+
+const DEFAULTS = {
+  location: "Indiranagar",
+  cuisine: "Thai",
+  budget: 1000 as number | null,
+  minRating: 4.0,
+  extras: "",
+  refine: { spicy: true, underBudget: true, quickTags: ["Authentic"] } as Refinements,
+};
 
 export default function Page() {
   const [localities, setLocalities] = useState<string[]>([]);
-  const [location, setLocation] = useState<string>("Indiranagar");
-  const [cuisine, setCuisine] = useState<string>("Thai");
-  const [budget, setBudget] = useState<number | null>(1000);
-  const [minRating, setMinRating] = useState<number>(4.0);
-  const [extras, setExtras] = useState<string>("");
-  const [refine, setRefine] = useState<Refinements>({
-    spicy: true,
-    underBudget: true,
-    quickTags: ["Authentic"],
-  });
+  const [location, setLocation] = useState<string>(DEFAULTS.location);
+  const [cuisine, setCuisine] = useState<string>(DEFAULTS.cuisine);
+  const [budget, setBudget] = useState<number | null>(DEFAULTS.budget);
+  const [minRating, setMinRating] = useState<number>(DEFAULTS.minRating);
+  const [extras, setExtras] = useState<string>(DEFAULTS.extras);
+  const [refine, setRefine] = useState<Refinements>(DEFAULTS.refine);
 
   const [resp, setResp] = useState<RecommendResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
+  const hydrated = useRef(false);
 
+  // Hydrate from localStorage once on mount, then load localities.
   useEffect(() => {
+    const saved = loadPrefs();
+    if (saved) {
+      setLocation(saved.location);
+      setCuisine(saved.cuisine);
+      setBudget(saved.budget);
+      setMinRating(saved.minRating);
+      setExtras(saved.extras);
+      setRefine(saved.refine);
+    }
+    hydrated.current = true;
+
     fetchLocalities()
       .then((list) => {
         setLocalities(list);
-        if (!list.includes(location) && list.length > 0) {
-          // Indiranagar exists in the dataset, but be defensive.
+        if (list.length > 0 && !list.includes(saved?.location ?? location)) {
+          // Saved/default locality isn't in the catalog — fall back gracefully.
           if (!list.includes("Indiranagar")) setLocation(list[0]);
         }
       })
       .catch((e) => setError(`Could not load localities: ${e.message}`));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist whenever any controlled field changes (skip the very first render
+  // so we don't immediately overwrite saved state with defaults).
+  useEffect(() => {
+    if (!hydrated.current) return;
+    savePrefs({ location, cuisine, budget, minRating, extras, refine });
+  }, [location, cuisine, budget, minRating, extras, refine]);
+
+  function resetPrefs() {
+    clearPrefs();
+    setLocation(DEFAULTS.location);
+    setCuisine(DEFAULTS.cuisine);
+    setBudget(DEFAULTS.budget);
+    setMinRating(DEFAULTS.minRating);
+    setExtras(DEFAULTS.extras);
+    setRefine(DEFAULTS.refine);
+    setResp(null);
+    setError(null);
+  }
 
   function buildExtras(extra?: string): string | undefined {
     const bits: string[] = [];
@@ -108,9 +146,18 @@ export default function Page() {
             </label>
             <button
               type="button"
+              onClick={resetPrefs}
+              disabled={loading}
+              className="ml-auto text-xs text-ink-500 hover:text-brand-600 underline-offset-2 hover:underline disabled:opacity-50"
+              title="Clear saved preferences and restore defaults"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
               onClick={() => runRecommend()}
               disabled={loading}
-              className="ml-auto px-4 py-1.5 rounded-full bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 disabled:opacity-50"
+              className="px-4 py-1.5 rounded-full bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 disabled:opacity-50"
             >
               {loading ? "Asking the model…" : "Get recommendations"}
             </button>

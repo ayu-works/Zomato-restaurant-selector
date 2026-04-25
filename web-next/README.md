@@ -35,4 +35,5 @@ components/
 lib/
   api.ts              # fetchLocalities, recommend
   types.ts            # response/preference types
+  persistence.ts      # localStorage hydrate/save (versioned schema, key `zomato-ai:prefs`)
 ```
